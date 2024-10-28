@@ -1112,8 +1112,8 @@ class TimelineCommitInstantsUploaderTest {
                       }
                     }))
             .collect(Collectors.toList());
-    when(activeTimelineInstantBatcher.createBatches(sortedFiles, 4, inputCheckpoint))
-        .thenReturn(Pair.of(firstIncompleteCommit, expectedBatches));
+//    when(activeTimelineInstantBatcher.createBatches(sortedFiles, 4, inputCheckpoint))
+//        .thenReturn(Pair.of(firstIncompleteCommit, expectedBatches));
   }
 
   private String addPrefixToFileName(String fileName, CommitTimelineType commitTimelineType) {

@@ -133,6 +133,8 @@ public class TimelineCommitInstantsUploader {
     // startAfter is used only in the first call to get the objects, post that continuation token is
     // used
     // Resetting the firstIncompleteCommitFile so that we do not process from the same commit again
+    // All commit files will be processed after firstIncompleteCommitFile, and the checkpoint will be
+    // updated accordingly
     String startAfter = getStartAfterString(prefix, checkpoint, true);
     return executePaginatedBatchUpload(
         tableId,
@@ -283,11 +285,31 @@ public class TimelineCommitInstantsUploader {
     int numBatches = batches.size();
 
     if (numBatches == 0) {
+      // In case of CONTINUE_ON_INCOMPLETE_COMMIT, the extractor also needs to check subsequent pages hence
+      // returning a non-null checkpoint to continue processing.
+      if (
+          CommitTimelineType.COMMIT_TIMELINE_TYPE_ACTIVE.equals(commitTimelineType) &&
+          extractorConfig
+          .getUploadStrategy()
+          .equals(MetadataExtractorConfig.UploadStrategy.CONTINUE_ON_INCOMPLETE_COMMIT)
+      ) {
+        log.info(
+            "No batches found in current page for table {} timeline {}",
+            table,
+            commitTimelineType);
+        // This checkpoint has to be the next page
+        return CompletableFuture.completedFuture(checkpoint.toBuilder()
+                .lastUploadedFile(filesToUpload.get(filesToUpload.size()-1).getFilename())
+            .build());
+        // write a functionality to check if ther is an incomplete commit at the end of batch and return the file before that if it is present
+        // dont edit the checkpoint but return the file after which start after has to happen
+        // have to return starting point of next page from here
+      }
       log.info(
           "Could not create batches with completed commits for table {} timeline {}",
           table,
           commitTimelineType);
-      return CompletableFuture.completedFuture(checkpoint);
+      return CompletableFuture.completedFuture(null);
     }
 
     log.info(
@@ -352,6 +374,7 @@ public class TimelineCommitInstantsUploader {
               },
               executorService);
     }
+    // return pair of file of new checkpoint, start after -> checkpoint file if normal mode, else
     return sequentialBatchProcessingFuture;
   }
 
@@ -420,6 +443,8 @@ public class TimelineCommitInstantsUploader {
     Checkpoint updatedCheckpoint =
         Checkpoint.builder()
             .batchId(batchId)
+            // if file > prevCheckpoint file then file.getFile else prevCheckpoint.getFile
+            // same for last modified time
             .lastUploadedFile(lastUploadedFile.getFilename())
             .checkpointTimestamp(lastUploadedFile.getLastModifiedAt())
             .archivedCommitsProcessed(archivedCommitsProcessed)

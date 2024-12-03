@@ -304,7 +304,10 @@ public class TimelineCommitInstantsUploader {
             table,
             commitTimelineType);
         return CompletableFuture.completedFuture(checkpoint);
-        // lastProcessedFile - return this
+        // lastProcessedFile - return this - extractor must start from one before this,
+        // because 1. it cannot start from continuation token as that might lead to skipping
+        // commits on the boundaries of pagination
+        // 2. it must start from the last unprocessed file which will handle all cases
       }
       log.info(
           "Could not create batches with completed commits for table {} timeline {}",
